@@ -14,12 +14,11 @@ import android.graphics.PorterDuff;
 import android.graphics.PorterDuffColorFilter;
 import android.graphics.Shader;
 import android.graphics.drawable.Drawable;
-import android.util.Log;
 import android.view.View;
 
 import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.R;
-import org.telegram.tgnet.TLRPC;
+import org.telegram.tgnet.tl.TL_stories;
 import org.telegram.ui.Components.AnimatedFloat;
 import org.telegram.ui.Components.ButtonBounce;
 import org.telegram.ui.Components.CubicBezierInterpolator;
@@ -53,7 +52,7 @@ public class StoryPrivacyButton extends View {
         arrowPaint.setColor(Color.WHITE);
     }
 
-    public boolean set(boolean mine, TLRPC.StoryItem storyItem, boolean animated) {
+    public boolean set(boolean mine, TL_stories.StoryItem storyItem, boolean animated) {
         drawArrow = mine;
         draw = true;
         if (storyItem == null) {
@@ -66,7 +65,7 @@ public class StoryPrivacyButton extends View {
             setIcon(R.drawable.msg_folders_private, 17.33f);
             setupGradient(0xFFC468F2, 0xFF965CFA);
             crossfadeT.set(animated, true);
-        } else if (storyItem.selected_contacts) {
+        } else if (storyItem.selected_contacts || mine && (storyItem.privacy == null || storyItem.privacy.isEmpty())) {
             setIcon(R.drawable.msg_folders_groups, 17.33f);
             setupGradient(0xFFFFB743, 0xFFF68E34);
             crossfadeT.set(animated, true);

@@ -4,9 +4,8 @@ import static org.telegram.messenger.AndroidUtilities.dp;
 
 import android.animation.Animator;
 import android.animation.AnimatorListenerAdapter;
+import android.animation.ValueAnimator;
 import android.content.Context;
-import android.text.TextUtils;
-import android.util.Log;
 import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.MotionEvent;
@@ -22,7 +21,6 @@ import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.DocumentObject;
 import org.telegram.messenger.ImageLocation;
 import org.telegram.messenger.LiteMode;
-import org.telegram.messenger.LocaleController;
 import org.telegram.messenger.MediaDataController;
 import org.telegram.messenger.NotificationCenter;
 import org.telegram.messenger.R;
@@ -30,7 +28,8 @@ import org.telegram.messenger.SvgHelper;
 import org.telegram.messenger.UserConfig;
 import org.telegram.tgnet.TLRPC;
 import org.telegram.ui.ActionBar.Theme;
-import org.telegram.ui.LaunchActivity;
+import org.telegram.ui.Components.spoilers.SpoilersTextView;
+import org.telegram.ui.Stories.recorder.ButtonWithCounterView;
 
 public class StickerEmptyView extends FrameLayout implements NotificationCenter.NotificationCenterDelegate {
 
@@ -43,8 +42,9 @@ public class StickerEmptyView extends FrameLayout implements NotificationCenter.
     public LinearLayout linearLayout;
     public BackupImageView stickerView;
     private RadialProgressView progressBar;
-    public final TextView title;
+    public final SpoilersTextView title;
     public final LinkSpanDrawable.LinksTextView subtitle;
+    public final ButtonWithCounterView button;
     private boolean progressShowing;
     private final Theme.ResourcesProvider resourcesProvider;
 
@@ -103,9 +103,9 @@ public class StickerEmptyView extends FrameLayout implements NotificationCenter.
         stickerView = new BackupImageView(context);
         stickerView.setOnClickListener(view -> stickerView.getImageReceiver().startAnimation());
 
-        title = new TextView(context);
+        title = new SpoilersTextView(context);
 
-        title.setTypeface(AndroidUtilities.getTypeface("fonts/rmedium.ttf"));
+        title.setTypeface(AndroidUtilities.bold());
         title.setTag(Theme.key_windowBackgroundWhiteBlackText);
         title.setTextColor(getThemedColor(Theme.key_windowBackgroundWhiteBlackText));
         title.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 20);
@@ -118,9 +118,13 @@ public class StickerEmptyView extends FrameLayout implements NotificationCenter.
         subtitle.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 14);
         subtitle.setGravity(Gravity.CENTER);
 
+        button = new ButtonWithCounterView(context, resourcesProvider);
+        button.setVisibility(View.GONE);
+
         linearLayout.addView(stickerView, LayoutHelper.createLinear(117, 117, Gravity.CENTER_HORIZONTAL));
         linearLayout.addView(title, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.CENTER_HORIZONTAL, 0, 12, 0, 0));
         linearLayout.addView(subtitle, LayoutHelper.createLinear(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.CENTER_HORIZONTAL, 0, 8, 0, 0));
+        linearLayout.addView(button, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 48, Gravity.CENTER_HORIZONTAL, 28, 16, 28, 0));
         addView(linearLayout, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.CENTER, 46, 0, 46, 30));
 
         if (progressView == null) {
@@ -139,7 +143,7 @@ public class StickerEmptyView extends FrameLayout implements NotificationCenter.
         buttonTextView.setTextColor(Theme.getColor(Theme.key_featuredStickers_buttonText, resourcesProvider));
         buttonTextView.setPadding(AndroidUtilities.dp(45), AndroidUtilities.dp(12), AndroidUtilities.dp(45), AndroidUtilities.dp(12));
         buttonTextView.setGravity(Gravity.CENTER);
-        buttonTextView.setTypeface(AndroidUtilities.getTypeface("fonts/rmedium.ttf"));
+        buttonTextView.setTypeface(AndroidUtilities.bold());
         buttonTextView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 15);
 
         FrameLayout buttonLayout = new FrameLayout(getContext()) {
@@ -197,6 +201,12 @@ public class StickerEmptyView extends FrameLayout implements NotificationCenter.
 
     @Override
     public void setVisibility(int visibility) {
+        setVisibility(visibility, true);
+    }
+
+    public void setVisibility(int visibility, boolean animated) {
+        setVisibility(visibility == VISIBLE, animated, false);
+
         if (getVisibility() != visibility) {
             if (visibility == VISIBLE) {
                 if (progressShowing) {
@@ -265,6 +275,11 @@ public class StickerEmptyView extends FrameLayout implements NotificationCenter.
     }
 
     private void setSticker() {
+        if (stickerType == STICKER_TYPE_NO_CONTACTS || stickerType == STICKER_TYPE_SEARCH) {
+            stickerView.setImageDrawable(new RLottieDrawable(R.raw.utyan_empty, "utyan_empty", dp(130), dp(130)));
+            return;
+        }
+
         String imageFilter = null;
         TLRPC.Document document = null;
         TLRPC.TL_messages_stickerSet set = null;
@@ -453,6 +468,48 @@ public class StickerEmptyView extends FrameLayout implements NotificationCenter.
             }
         }
         return count;
+    }
+
+    private ValueAnimator visibilityAnimator;
+    private float visibilityFactor;
+    private boolean visibilityValue;
+
+    public float getVisibilityFactor() {
+        return visibilityFactor;
+    }
+
+    private void setVisibility(boolean visibility, boolean animated, boolean force) {
+        if (visibilityValue == visibility && !force) {
+            return;
+        }
+
+        visibilityValue = visibility;
+        setEnabled(visibility);
+
+        if (visibilityAnimator != null) {
+            visibilityAnimator.cancel();
+            visibilityAnimator = null;
+        }
+
+        if (!animated) {
+            visibilityFactor = visibility ? 1: 0;
+            onVisibilityChange(visibilityFactor);
+            return;
+        }
+
+        visibilityAnimator = ValueAnimator.ofFloat(visibilityFactor, visibility ? 1: 0);
+        visibilityAnimator.setDuration(480L);
+        visibilityAnimator.setInterpolator(CubicBezierInterpolator.EASE_OUT_QUINT);
+        visibilityAnimator.addUpdateListener(a -> {
+            visibilityFactor = (float) a.getAnimatedValue();
+            onVisibilityChange(visibilityFactor);
+
+        });
+        visibilityAnimator.start();
+    }
+
+    protected void onVisibilityChange(float factor) {
+        invalidate();
     }
 
 }

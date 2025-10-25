@@ -2,60 +2,30 @@ package org.telegram.ui.Components.Paint.Views;
 
 import android.content.Context;
 import android.graphics.Canvas;
-import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.Path;
 import android.graphics.PorterDuff;
-import android.graphics.PorterDuffColorFilter;
 import android.graphics.PorterDuffXfermode;
-import android.graphics.Typeface;
-import android.graphics.Xfermode;
-import android.graphics.drawable.Drawable;
-import android.graphics.text.LineBreaker;
-import android.os.Build;
-import android.text.Editable;
-import android.text.Layout;
-import android.text.SpannableString;
-import android.text.SpannableStringBuilder;
-import android.text.Spanned;
-import android.text.TextPaint;
-import android.text.TextWatcher;
-import android.text.style.DynamicDrawableSpan;
-import android.text.style.ImageSpan;
-import android.util.TypedValue;
 import android.view.Gravity;
-import android.view.MotionEvent;
-import android.view.View;
 import android.view.ViewGroup;
-import android.view.inputmethod.EditorInfo;
-
-import androidx.core.graphics.ColorUtils;
-
-import com.googlecode.mp4parser.authoring.Edit;
 
 import org.telegram.messenger.AndroidUtilities;
-import org.telegram.messenger.Emoji;
-import org.telegram.messenger.LocaleController;
-import org.telegram.messenger.NotificationCenter;
-import org.telegram.messenger.R;
-import org.telegram.messenger.VideoEditedInfo;
 import org.telegram.tgnet.TLRPC;
-import org.telegram.ui.ActionBar.Theme;
-import org.telegram.ui.Components.AnimatedEmojiSpan;
+import org.telegram.tgnet.tl.TL_stories;
 import org.telegram.ui.Components.LayoutHelper;
-import org.telegram.ui.Components.Paint.PaintTypeface;
-import org.telegram.ui.Components.Paint.Swatch;
 import org.telegram.ui.Components.Point;
 import org.telegram.ui.Components.Rect;
 
 public class LocationView extends EntityView {
 
     public final LocationMarker marker;
+
+    private boolean hasColor;
     private int currentColor;
     private int currentType;
 
     public TLRPC.MessageMedia location;
-    public TLRPC.MediaArea mediaArea;
+    public TL_stories.MediaArea mediaArea;
 
     @Override
     protected float getStickyPaddingLeft() {
@@ -100,13 +70,13 @@ public class LocationView extends EntityView {
         return deg(Lat) + (Lat > 0 ? "N" : "S") + " " + deg(Long) + (Long > 0 ? "E" : "W");
     }
 
-    public LocationView(Context context, Point position, int currentAccount, TLRPC.MessageMedia location, TLRPC.MediaArea mediaArea, float density, int maxWidth, int type, int color) {
+    public LocationView(Context context, Point position, int currentAccount, TLRPC.MessageMedia location, TL_stories.MediaArea mediaArea, float density, int maxWidth) {
         super(context, position);
 
-        marker = new LocationMarker(context, density);
+        marker = new LocationMarker(context, LocationMarker.VARIANT_LOCATION, density, 0);
         marker.setMaxWidth(maxWidth);
         setLocation(currentAccount, location, mediaArea);
-        marker.setType(currentType = type, currentColor = color);
+        marker.setType(0, currentColor);
         addView(marker, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.LEFT | Gravity.TOP));
 
         setClipChildren(false);
@@ -115,7 +85,7 @@ public class LocationView extends EntityView {
         updatePosition();
     }
 
-    public void setLocation(int currentAccount, TLRPC.MessageMedia location, TLRPC.MediaArea area) {
+    public void setLocation(int currentAccount, TLRPC.MessageMedia location, TL_stories.MediaArea area) {
         this.location = location;
         this.mediaArea = area;
 
@@ -129,7 +99,7 @@ public class LocationView extends EntityView {
         } else {
             title = "";
         }
-        marker.setCountryCodeEmoji(currentAccount, countryCodeEmoji);
+        marker.setCodeEmoji(currentAccount, countryCodeEmoji);
         marker.setText(title);
 
         updateSelectionView();
@@ -151,16 +121,21 @@ public class LocationView extends EntityView {
         updatePosition();
     }
 
+    public void setColor(int color) {
+        hasColor = true;
+        currentColor = color;
+    }
+
+    public boolean hasColor() {
+        return hasColor;
+    }
+
     public void setType(int type) {
         marker.setType(currentType = type, currentColor);
     }
 
-    public void setType(int type, int color) {
-        marker.setType(currentType = type, currentColor = color);
-    }
-
-    public void setColor(int color) {
-        setType(currentType, color);
+    public int getTypesCount() {
+        return marker.getTypesCount() - (hasColor ? 0 : 1);
     }
 
     public int getColor() {
@@ -177,7 +152,7 @@ public class LocationView extends EntityView {
     }
 
     @Override
-    protected Rect getSelectionBounds() {
+    public Rect getSelectionBounds() {
         ViewGroup parentView = (ViewGroup) getParent();
         if (parentView == null) {
             return new Rect();

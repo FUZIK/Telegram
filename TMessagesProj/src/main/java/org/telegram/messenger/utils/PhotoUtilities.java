@@ -97,8 +97,8 @@ public class PhotoUtilities {
                             if (onDone != null) {
                                 onDone.run();
                             }
-                            CharSequence title = AndroidUtilities.replaceTags(LocaleController.getString("ApplyAvatarHintTitle", R.string.ApplyAvatarHintTitle));
-                            CharSequence subtitle = AndroidUtilities.replaceSingleTag(LocaleController.getString("ApplyAvatarHint", R.string.ApplyAvatarHint), () -> {
+                            CharSequence title = AndroidUtilities.replaceTags(LocaleController.getString(R.string.ApplyAvatarHintTitle));
+                            CharSequence subtitle = AndroidUtilities.replaceSingleTag(LocaleController.getString(R.string.ApplyAvatarHint), () -> {
                                 Bundle args = new Bundle();
                                 args.putLong("user_id", UserConfig.getInstance(currentAccount).clientUserId);
                                 layout.getLastFragment().presentFragment(new ProfileActivity(args));
@@ -211,15 +211,15 @@ public class PhotoUtilities {
                             File src = FileLoader.getInstance(chatActivity.getCurrentAccount()).getPathToAttach(avatarBig[0], true);
                             src.renameTo(destFile);
                         }
-                        chatActivity.getMessagesStorage().addDialogPhoto(user.id, ((TLRPC.TL_photos_photo) response).photo);
+                        chatActivity.getMessagesController().getDialogPhotos(user.id).addPhotoAtStart(((TLRPC.TL_photos_photo) response).photo);
                         ArrayList<TLRPC.User> users = new ArrayList<>();
                         users.add(user);
                         chatActivity.getMessagesStorage().putUsersAndChats(users, null, false, true);
                         TLRPC.UserFull userFull = chatActivity.getMessagesController().getUserFull(userId);
                         userFull.profile_photo = photos_photo.photo;
                         chatActivity.getMessagesStorage().updateUserInfo(userFull, false);
-                        CharSequence title = AndroidUtilities.replaceTags(LocaleController.getString("ApplyAvatarHintTitle", R.string.ApplyAvatarHintTitle));
-                        CharSequence subtitle = AndroidUtilities.replaceSingleTag(LocaleController.getString("ApplyAvatarHint", R.string.ApplyAvatarHint), () -> {
+                        CharSequence title = AndroidUtilities.replaceTags(LocaleController.getString(R.string.ApplyAvatarHintTitle));
+                        CharSequence subtitle = AndroidUtilities.replaceSingleTag(LocaleController.getString(R.string.ApplyAvatarHint), () -> {
                             Bundle args = new Bundle();
                             args.putLong("user_id", userId);
                             chatActivity.presentFragment(new ProfileActivity(args));

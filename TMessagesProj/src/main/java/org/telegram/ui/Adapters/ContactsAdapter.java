@@ -22,6 +22,7 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.ContactsController;
+import org.telegram.messenger.DialogObject;
 import org.telegram.messenger.FileLog;
 import org.telegram.messenger.LocaleController;
 import org.telegram.messenger.MessagesController;
@@ -29,6 +30,7 @@ import org.telegram.messenger.R;
 import org.telegram.messenger.UserConfig;
 import org.telegram.tgnet.ConnectionsManager;
 import org.telegram.tgnet.TLRPC;
+import org.telegram.tgnet.tl.TL_stories;
 import org.telegram.ui.ActionBar.ActionBar;
 import org.telegram.ui.ActionBar.BaseFragment;
 import org.telegram.ui.ActionBar.Theme;
@@ -57,33 +59,32 @@ public class ContactsAdapter extends RecyclerListView.SectionsAdapter {
     private int onlyUsers;
     private boolean needPhonebook;
     private LongSparseArray<TLRPC.User> ignoreUsers;
-    private LongSparseArray<?> checkedMap;
+    private LongSparseArray<TLRPC.User> selectedContacts;
     private ArrayList<TLRPC.TL_contact> onlineContacts;
     private boolean scrolling;
     private boolean isAdmin;
     private int sortType;
     private boolean isChannel;
     private boolean disableSections;
-    private boolean hasGps;
-    private boolean isEmpty;
+    public boolean isEmpty;
     public boolean hasStories;
-    public ArrayList<TLRPC.TL_userStories> userStories = new ArrayList<>();
+    public ArrayList<TL_stories.PeerStories> userStories = new ArrayList<>();
 
     DialogStoriesCell dialogStoriesCell;
     BaseFragment fragment;
 
-    public ContactsAdapter(Context context, BaseFragment fragment, int onlyUsersType, boolean showPhoneBook, LongSparseArray<TLRPC.User> usersToIgnore, int flags, boolean gps) {
+    public ContactsAdapter(Context context, BaseFragment fragment, int onlyUsersType, boolean showPhoneBook, LongSparseArray<TLRPC.User> usersToIgnore, LongSparseArray<TLRPC.User> selectedContacts, int flags, boolean gps) {
         mContext = context;
         onlyUsers = onlyUsersType;
         needPhonebook = showPhoneBook;
         ignoreUsers = usersToIgnore;
+        this.selectedContacts = selectedContacts;
         isAdmin = flags != 0;
         isChannel = flags == 2;
-        hasGps = gps;
         this.fragment = fragment;
     }
 
-    public void setStories(ArrayList<TLRPC.TL_userStories> stories, boolean animated) {
+    public void setStories(ArrayList<TL_stories.PeerStories> stories, boolean animated) {
 //        boolean hasStories = !stories.isEmpty();
 //        userStories.clear();
 //        userStories.addAll(stories);
@@ -173,10 +174,6 @@ public class ContactsAdapter extends RecyclerListView.SectionsAdapter {
         }
     }
 
-    public void setCheckedMap(LongSparseArray<?> map) {
-        checkedMap = map;
-    }
-
     public void setIsScrolling(boolean value) {
         scrolling = value;
     }
@@ -193,7 +190,7 @@ public class ContactsAdapter extends RecyclerListView.SectionsAdapter {
             if (position == userStories.size()) {
                 return "Header";
             } else {
-                return userStories.get(position).user_id;
+                return DialogObject.getPeerDialogId(userStories.get(position).peer);
             }
         } else if (hasStories && section > 1) {
             section--;
@@ -278,7 +275,7 @@ public class ContactsAdapter extends RecyclerListView.SectionsAdapter {
                 if (isAdmin) {
                     return row != 1;
                 } else if (needPhonebook) {
-                    return hasGps && row != 2 || !hasGps && row != 1;
+                    return row != 1;
                 } else {
                     return row != 3;
                 }
@@ -362,7 +359,7 @@ public class ContactsAdapter extends RecyclerListView.SectionsAdapter {
                 if (isAdmin) {
                     return 2;
                 } else if (needPhonebook) {
-                    return hasGps ? 3 : 2;
+                    return 2;
                 } else {
                     return 4;
                 }
@@ -460,9 +457,6 @@ public class ContactsAdapter extends RecyclerListView.SectionsAdapter {
                         }
                         int cellHeight = AndroidUtilities.dp(50);
                         int totalHeight = onlyUsers != 0 ? 0 : cellHeight + AndroidUtilities.dp(30);
-                        if (hasGps) {
-                            totalHeight += cellHeight;
-                        }
                         if (!isAdmin && !needPhonebook) {
                             totalHeight += cellHeight;
                         }
@@ -516,7 +510,7 @@ public class ContactsAdapter extends RecyclerListView.SectionsAdapter {
                     userCell.setAvatarPadding(6);
                     userCell.storyParams.drawSegments = true;
                     StoriesController storiesController = MessagesController.getInstance(currentAccount).getStoriesController();
-                    TLRPC.User user = MessagesController.getInstance(currentAccount).getUser(userStories.get(position).user_id);
+                    TLRPC.User user = MessagesController.getInstance(currentAccount).getUser(DialogObject.getPeerDialogId(userStories.get(position).peer));
                     if (storiesController.hasUnreadStories(user.id)) {
                         int newStories = storiesController.getUnreadStoriesCount(user.id);
                         userCell.setData(user, ContactsController.formatName(user), LocaleController.formatPluralString("NewStories", newStories, newStories).toLowerCase(), 0);
@@ -529,11 +523,11 @@ public class ContactsAdapter extends RecyclerListView.SectionsAdapter {
                 case 2:
                     GraySectionCell sectionCell = (GraySectionCell) holder.itemView;
                     if (sortType == SORT_TYPE_NONE) {
-                        sectionCell.setText(LocaleController.getString("Contacts", R.string.Contacts));
+                        sectionCell.setText(LocaleController.getString(R.string.Contacts));
                     } else if (sortType == SORT_TYPE_BY_NAME) {
-                        sectionCell.setText(LocaleController.getString("SortedByName", R.string.SortedByName));
+                        sectionCell.setText(LocaleController.getString(R.string.SortedByName));
                     } else {
-                        sectionCell.setText(LocaleController.getString("SortedByLastSeen", R.string.SortedByLastSeen));
+                        sectionCell.setText(LocaleController.getString(R.string.SortedByLastSeen));
                     }
                     break;
             }
@@ -556,9 +550,7 @@ public class ContactsAdapter extends RecyclerListView.SectionsAdapter {
                 }
                 TLRPC.User user = MessagesController.getInstance(currentAccount).getUser(arr.get(position).user_id);
                 userCell.setData(user, null, null, 0);
-                if (checkedMap != null) {
-                    userCell.setChecked(checkedMap.indexOfKey(user.id) >= 0, !scrolling);
-                }
+                userCell.setChecked(selectedContacts.indexOfKey(user.id) >= 0, false);
                 if (ignoreUsers != null) {
                     if (ignoreUsers.indexOfKey(user.id) >= 0) {
                         userCell.setAlpha(0.5f);
@@ -572,23 +564,21 @@ public class ContactsAdapter extends RecyclerListView.SectionsAdapter {
                 if (section == 0) {
                     if (needPhonebook) {
                         if (position == 0) {
-                            textCell.setTextAndIcon(LocaleController.getString("InviteFriends", R.string.InviteFriends), R.drawable.msg_invite, false);
-                        } else if (position == 1) {
-                            textCell.setTextAndIcon(LocaleController.getString("AddPeopleNearby", R.string.AddPeopleNearby), R.drawable.msg_location, false);
+                            textCell.setTextAndIcon(LocaleController.getString(R.string.InviteFriends), R.drawable.msg_invite, false);
                         }
                     } else if (isAdmin) {
                         if (isChannel) {
-                            textCell.setTextAndIcon(LocaleController.getString("ChannelInviteViaLink", R.string.ChannelInviteViaLink), R.drawable.msg_link2, false);
+                            textCell.setTextAndIcon(LocaleController.getString(R.string.ChannelInviteViaLink), R.drawable.msg_link2, false);
                         } else {
-                            textCell.setTextAndIcon(LocaleController.getString("InviteToGroupByLink", R.string.InviteToGroupByLink), R.drawable.msg_link2, false);
+                            textCell.setTextAndIcon(LocaleController.getString(R.string.InviteToGroupByLink), R.drawable.msg_link2, false);
                         }
                     } else {
                         if (position == 0) {
-                            textCell.setTextAndIcon(LocaleController.getString("NewGroup", R.string.NewGroup), R.drawable.msg_groups, false);
+                            textCell.setTextAndIcon(LocaleController.getString(R.string.NewGroup), R.drawable.msg_groups, false);
                         } else if (position == 1) {
-                            textCell.setTextAndIcon(LocaleController.getString("NewSecretChat", R.string.NewSecretChat), R.drawable.msg_secret, false);
+                            textCell.setTextAndIcon(LocaleController.getString(R.string.NewContact), R.drawable.msg_addcontact, false);
                         } else if (position == 2) {
-                            textCell.setTextAndIcon(LocaleController.getString("NewChannel", R.string.NewChannel), R.drawable.msg_channel, false);
+                            textCell.setTextAndIcon(LocaleController.getString(R.string.NewChannel), R.drawable.msg_channel, false);
                         }
                     }
                 } else {
@@ -605,13 +595,13 @@ public class ContactsAdapter extends RecyclerListView.SectionsAdapter {
             case 2:
                 GraySectionCell sectionCell = (GraySectionCell) holder.itemView;
                 if (hasStories) {
-                    sectionCell.setText(LocaleController.getString("HiddenStories", R.string.HiddenStories));
+                    sectionCell.setText(LocaleController.getString(R.string.HiddenStories));
                 } else if (sortType == SORT_TYPE_NONE) {
-                    sectionCell.setText(LocaleController.getString("Contacts", R.string.Contacts));
+                    sectionCell.setText(LocaleController.getString(R.string.Contacts));
                 } else if (sortType == SORT_TYPE_BY_NAME) {
-                    sectionCell.setText(LocaleController.getString("SortedByName", R.string.SortedByName));
+                    sectionCell.setText(LocaleController.getString(R.string.SortedByName));
                 } else {
-                    sectionCell.setText(LocaleController.getString("SortedByLastSeen", R.string.SortedByLastSeen));
+                    sectionCell.setText(LocaleController.getString(R.string.SortedByLastSeen));
                 }
                 break;
         }
@@ -643,7 +633,7 @@ public class ContactsAdapter extends RecyclerListView.SectionsAdapter {
                         return 2;
                     }
                 } else if (needPhonebook) {
-                    if (hasGps && position == 2 || !hasGps && position == 1) {
+                    if (position == 1) {
                         return isEmpty ? 5 : 2;
                     }
                 } else if (position == 3) {
@@ -702,7 +692,7 @@ public class ContactsAdapter extends RecyclerListView.SectionsAdapter {
 
     public void removeStory(long dialogId) {
         for (int i = 0; i < userStories.size(); i++) {
-            if (userStories.get(i).user_id == dialogId) {
+            if (DialogObject.getPeerDialogId(userStories.get(i).peer) == dialogId) {
                 userStories.remove(i);
 
                 if (userStories.isEmpty()) {

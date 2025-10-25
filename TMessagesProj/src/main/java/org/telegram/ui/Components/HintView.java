@@ -15,6 +15,7 @@ import android.graphics.Path;
 import android.graphics.PorterDuff;
 import android.graphics.PorterDuffColorFilter;
 import android.graphics.drawable.Drawable;
+import android.util.Log;
 import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.View;
@@ -38,8 +39,10 @@ import org.telegram.ui.Cells.ChatMessageCell;
 
 
 @SuppressWarnings("FieldCanBeLocal")
+@Deprecated // use HintView2 instead
 public class HintView extends FrameLayout {
 
+    public static final int TYPE_NOSOUND = 0;
     public static final int TYPE_SEARCH_AS_LIST = 3;
     public static final int TYPE_COMMON = 4;
     public static final int TYPE_POLL_VOTE = 5;
@@ -107,12 +110,12 @@ public class HintView extends FrameLayout {
         } else {
             textView.setGravity(Gravity.LEFT | Gravity.TOP);
             textView.setBackground(Theme.createRoundRectDrawable(AndroidUtilities.dp(6), getThemedColor(Theme.key_chat_gifSaveHintBackground)));
-            textView.setPadding(AndroidUtilities.dp(currentType == 0 ? 54 : 8), AndroidUtilities.dp(7), AndroidUtilities.dp(8), AndroidUtilities.dp(8));
+            textView.setPadding(AndroidUtilities.dp(currentType == TYPE_NOSOUND ? 54 : 8), AndroidUtilities.dp(7), AndroidUtilities.dp(8), AndroidUtilities.dp(8));
             addView(textView, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.LEFT | Gravity.TOP, 0, topArrow ? 6 : 0, 0, topArrow ? 0 : 6));
         }
 
-        if (type == 0) {
-            textView.setText(LocaleController.getString("AutoplayVideoInfo", R.string.AutoplayVideoInfo));
+        if (type == TYPE_NOSOUND) {
+            textView.setText(LocaleController.getString(R.string.AutoplayVideoInfo));
 
             imageView = new ImageView(context);
             imageView.setImageResource(R.drawable.tooltip_sound);
@@ -135,8 +138,9 @@ public class HintView extends FrameLayout {
         imageView.setImageResource(R.drawable.msg_mini_close_tooltip);
         imageView.setScaleType(ImageView.ScaleType.CENTER);
         imageView.setColorFilter(new PorterDuffColorFilter(ColorUtils.setAlphaComponent(getThemedColor(Theme.key_chat_gifSaveHintText), 125), PorterDuff.Mode.MULTIPLY));
-        imageView.setOnClickListener(v -> hide(true));
         addView(imageView, LayoutHelper.createFrame(34, 34, Gravity.RIGHT | Gravity.CENTER_VERTICAL, 0, isTopArrow ? 3 : 0, 0, isTopArrow ? 0 : 3));
+
+        setOnClickListener(v -> hide(true));
     }
 
     public void setBackgroundColor(int background, int text) {
@@ -169,7 +173,7 @@ public class HintView extends FrameLayout {
     }
 
     public boolean showForMessageCell(ChatMessageCell cell, Object object, int x, int y, boolean animated) {
-        if (currentType == TYPE_POLL_VOTE && y == shownY && messageCell == cell || currentType != TYPE_POLL_VOTE && (currentType == 0 && getTag() != null || messageCell == cell)) {
+        if (currentType == TYPE_POLL_VOTE && y == shownY && messageCell == cell || currentType != TYPE_POLL_VOTE && (currentType == TYPE_NOSOUND && getTag() != null || messageCell == cell)) {
             return false;
         }
         if (hideRunnable != null) {
@@ -185,7 +189,7 @@ public class HintView extends FrameLayout {
 
         View parentView = (View) cell.getParent();
         int centerX;
-        if (currentType == 0) {
+        if (currentType == TYPE_NOSOUND) {
             ImageReceiver imageReceiver = cell.getPhotoImage();
             top += imageReceiver.getImageY();
             int height = (int) imageReceiver.getImageHeight();
@@ -195,23 +199,24 @@ public class HintView extends FrameLayout {
                 return false;
             }
             centerX = cell.getNoSoundIconCenterX();
+            measure(MeasureSpec.makeMeasureSpec(1000, MeasureSpec.AT_MOST), MeasureSpec.makeMeasureSpec(1000, MeasureSpec.AT_MOST));
         } else if (currentType == TYPE_POLL_VOTE) {
             Integer count = (Integer) object;
             centerX = x;
             top += y;
             shownY = y;
             if (count == -1) {
-                textView.setText(LocaleController.getString("PollSelectOption", R.string.PollSelectOption));
+                textView.setText(LocaleController.getString(R.string.PollSelectOption));
             } else {
                 if (cell.getMessageObject().isQuiz()) {
                     if (count == 0) {
-                        textView.setText(LocaleController.getString("NoVotesQuiz", R.string.NoVotesQuiz));
+                        textView.setText(LocaleController.getString(R.string.NoVotesQuiz));
                     } else {
                         textView.setText(LocaleController.formatPluralString("Answer", count));
                     }
                 } else {
                     if (count == 0) {
-                        textView.setText(LocaleController.getString("NoVotes", R.string.NoVotes));
+                        textView.setText(LocaleController.getString(R.string.NoVotes));
                     } else {
                         textView.setText(LocaleController.formatPluralString("Vote", count));
                     }
@@ -221,7 +226,7 @@ public class HintView extends FrameLayout {
         } else {
             MessageObject messageObject = cell.getMessageObject();
             if (overrideText == null) {
-                textView.setText(LocaleController.getString("HidAccount", R.string.HidAccount));
+                textView.setText(LocaleController.getString(R.string.HidAccount));
             } else {
                 textView.setText(overrideText);
             }
@@ -234,9 +239,6 @@ public class HintView extends FrameLayout {
                 top += AndroidUtilities.dp(22);
                 if (!messageObject.isOutOwner() && cell.isDrawNameLayout()) {
                     top += AndroidUtilities.dp(20);
-                }
-                if (!messageObject.shouldDrawWithoutBackground() && cell.isDrawTopic()) {
-                    top += AndroidUtilities.dp(5) + cell.getDrawTopicHeight();
                 }
             }
             if (!isTopArrow && top <= getMeasuredHeight() + AndroidUtilities.dp(10)) {
@@ -305,7 +307,7 @@ public class HintView extends FrameLayout {
                 public void onAnimationEnd(Animator animation) {
                     animatorSet = null;
                     if (!hasCloseButton) {
-                        AndroidUtilities.runOnUIThread(hideRunnable = () -> hide(), currentType == 0 ? 10000 : 2000);
+                        AndroidUtilities.runOnUIThread(hideRunnable = () -> hide(), currentType == TYPE_NOSOUND ? 10000 : 2000);
                     }
                 }
             });

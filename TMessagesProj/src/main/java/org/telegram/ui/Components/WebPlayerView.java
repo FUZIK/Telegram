@@ -41,6 +41,8 @@ import android.webkit.WebView;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
 
+import androidx.annotation.Keep;
+
 import com.google.android.exoplayer2.C;
 import com.google.android.exoplayer2.ExoPlayer;
 import com.google.android.exoplayer2.ui.AspectRatioFrameLayout;
@@ -435,6 +437,7 @@ public class WebPlayerView extends ViewGroup implements VideoPlayer.VideoPlayerD
             callJavaResultInterface = callJavaResult;
         }
 
+        @Keep
         @JavascriptInterface
         public void returnResultToJava(String value) {
             callJavaResultInterface.jsCallFinished(value);
@@ -1544,7 +1547,19 @@ public class WebPlayerView extends ViewGroup implements VideoPlayer.VideoPlayerD
         addView(aspectRatioFrameLayout, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT, Gravity.CENTER));
 
         interfaceName = "JavaScriptInterface";
-        webView = new WebView(context);
+        webView = new WebView(context) {
+            @Override
+            protected void onAttachedToWindow() {
+                AndroidUtilities.checkAndroidTheme(context, true);
+                super.onAttachedToWindow();
+            }
+
+            @Override
+            protected void onDetachedFromWindow() {
+                AndroidUtilities.checkAndroidTheme(context, false);
+                super.onDetachedFromWindow();
+            }
+        };
         webView.addJavascriptInterface(new JavaScriptInterface(value -> {
             if (currentTask != null && !currentTask.isCancelled()) {
                 if (currentTask instanceof YoutubeVideoTask) {
@@ -2075,12 +2090,12 @@ public class WebPlayerView extends ViewGroup implements VideoPlayer.VideoPlayerD
     }
 
     public static String getYouTubeVideoId(String url) {
-        Matcher matcher = youtubeIdRegex.matcher(url);
-        String id = null;
-        if (matcher.find()) {
-            id = matcher.group(1);
+        if (url == null) return null;
+        final Matcher matcher = youtubeIdRegex.matcher(url);
+        if (!matcher.find()) {
+            return null;
         }
-        return id;
+        return matcher.group(1);
     }
 
     public boolean canHandleUrl(String url) {
