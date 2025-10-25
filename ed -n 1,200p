@@ -1,0 +1,101 @@
+[1mdiff --git a/TMessagesProj/src/main/java/org/telegram/ui/FilteredSearchView.java b/TMessagesProj/src/main/java/org/telegram/ui/FilteredSearchView.java[m
+[1mindex 7a6c60f2..0c47a5d1 100644[m
+[1m--- a/TMessagesProj/src/main/java/org/telegram/ui/FilteredSearchView.java[m
+[1m+++ b/TMessagesProj/src/main/java/org/telegram/ui/FilteredSearchView.java[m
+[36m@@ -14,7 +14,8 @@[m [mimport android.os.Build;[m
+ import android.text.SpannableStringBuilder;[m
+ import android.text.TextPaint;[m
+ import android.text.TextUtils;[m
+[31m-import android.util.SparseArray;[m
+[32m+[m[32mimport android.util.LongSparseArray;[m
+[32m+[m[32mimport android.util.SparseBooleanArray;[m
+ import android.view.Gravity;[m
+ import android.view.View;[m
+ import android.view.ViewGroup;[m
+[36m@@ -92,7 +93,7 @@[m [mpublic class FilteredSearchView extends FrameLayout implements NotificationCente[m
+     Runnable searchRunnable;[m
+ [m
+     public ArrayList<MessageObject> messages = new ArrayList<>();[m
+[31m-    public SparseArray<MessageObject> messagesById = new SparseArray<>();[m
+[32m+[m[32m    private final LongSparseArray<SparseBooleanArray> messageIdsByDialog = new LongSparseArray<>();[m
+     public ArrayList<String> sections = new ArrayList<>();[m
+     public HashMap<String, ArrayList<MessageObject>> sectionArrays = new HashMap<>();[m
+ [m
+[36m@@ -140,6 +141,7 @@[m [mpublic class FilteredSearchView extends FrameLayout implements NotificationCente[m
+         public void run() {[m
+             if (isLoading) {[m
+                 messages.clear();[m
+[32m+[m[32m                messageIdsByDialog.clear();[m
+                 sections.clear();[m
+                 sectionArrays.clear();[m
+                 if (adapter != null) {[m
+[36m@@ -521,6 +523,7 @@[m [mpublic class FilteredSearchView extends FrameLayout implements NotificationCente[m
+         }[m
+         if (forceClear || currentSearchFilter == null && dialogId == 0 && minDate == 0 && maxDate == 0) {[m
+             messages.clear();[m
+[32m+[m[32m            messageIdsByDialog.clear();[m
+             sections.clear();[m
+             sectionArrays.clear();[m
+             isLoading = true;[m
+[36m@@ -659,15 +662,28 @@[m [mpublic class FilteredSearchView extends FrameLayout implements NotificationCente[m
+                     MessagesController.getInstance(currentAccount).putChats(res.chats, false);[m
+                     if (!filterAndQueryIsSame) {[m
+                         messages.clear();[m
+[31m-                        messagesById.clear();[m
+[32m+[m[32m                        messageIdsByDialog.clear();[m
+                         sections.clear();[m
+                         sectionArrays.clear();[m
+                     }[m
+                     totalCount = res.count;[m
+                     currentDataQuery = query;[m
+                     int n = messageObjects.size();[m
+[32m+[m[32m                    int addedCount = 0;[m
+                     for (int i = 0; i < n; i++) {[m
+                         MessageObject messageObject = messageObjects.get(i);[m
+[32m+[m[32m                        long messageDialogId = messageObject.getDialogId();[m
+[32m+[m[32m                        SparseBooleanArray ids = messageIdsByDialog.get(messageDialogId);[m
+[32m+[m[32m                        if (ids == null) {[m
+[32m+[m[32m                            ids = new SparseBooleanArray();[m
+[32m+[m[32m                            messageIdsByDialog.put(messageDialogId, ids);[m
+[32m+[m[32m                        }[m
+[32m+[m[32m                        if (ids.get(messageObject.getId())) {[m
+[32m+[m[32m                            continue;[m
+[32m+[m[32m                        }[m
+[32m+[m[32m                        ids.put(messageObject.getId(), true);[m
+[32m+[m[32m                        addedCount++;[m
+[32m+[m
+                         ArrayList<MessageObject> messageObjectsByDate = sectionArrays.get(messageObject.monthKey);[m
+                         if (messageObjectsByDate == null) {[m
+                             messageObjectsByDate = new ArrayList<>();[m
+[36m@@ -676,7 +692,6 @@[m [mpublic class FilteredSearchView extends FrameLayout implements NotificationCente[m
+                         }[m
+                         messageObjectsByDate.add(messageObject);[m
+                         messages.add(messageObject);[m
+[31m-                        messagesById.put(messageObject.getId(), messageObject);[m
+ [m
+                         if (PhotoViewer.getInstance().isVisible()) {[m
+                             PhotoViewer.getInstance().addPhoto(messageObject, photoViewerClassGuid);[m
+[36m@@ -685,7 +700,7 @@[m [mpublic class FilteredSearchView extends FrameLayout implements NotificationCente[m
+                     if (messages.size() > totalCount) {[m
+                         totalCount = messages.size();[m
+                     }[m
+[31m-                    endReached = messages.size() >= totalCount;[m
+[32m+[m[32m                    endReached = res.messages.isEmpty() || (filterAndQueryIsSame && addedCount == 0) || messages.size() >= totalCount;[m
+ [m
+                     if (messages.isEmpty()) {[m
+                         if (currentSearchFilter != null) {[m
+[36m@@ -885,7 +900,13 @@[m [mpublic class FilteredSearchView extends FrameLayout implements NotificationCente[m
+                     if (messageObject.getId() == markAsDeletedMessages.get(i)) {[m
+                         changed = true;[m
+                         messages.remove(j);[m
+[31m-                        messagesById.remove(messageObject.getId());[m
+[32m+[m[32m                        SparseBooleanArray ids = messageIdsByDialog.get(dialogId);[m
+[32m+[m[32m                        if (ids != null) {[m
+[32m+[m[32m                            ids.delete(messageObject.getId());[m
+[32m+[m[32m                            if (ids.size() == 0) {[m
+[32m+[m[32m                                messageIdsByDialog.remove(dialogId);[m
+[32m+[m[32m                            }[m
+[32m+[m[32m                        }[m
+ [m
+                         ArrayList<MessageObject> section = sectionArrays.get(messageObject.monthKey);[m
+                         section.remove(messageObject);[m

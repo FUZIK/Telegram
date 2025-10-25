@@ -16,7 +16,8 @@ import android.os.Build;
 import android.text.SpannableStringBuilder;
 import android.text.TextPaint;
 import android.text.TextUtils;
-import android.util.SparseArray;
+import android.util.LongSparseArray;
+import android.util.SparseBooleanArray;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
@@ -94,7 +95,7 @@ public class FilteredSearchView extends FrameLayout implements NotificationCente
     Runnable searchRunnable;
 
     public ArrayList<MessageObject> messages = new ArrayList<>();
-    public SparseArray<MessageObject> messagesById = new SparseArray<>();
+    private final LongSparseArray<SparseBooleanArray> messageIdsByDialog = new LongSparseArray<>();
     public ArrayList<String> sections = new ArrayList<>();
     public HashMap<String, ArrayList<MessageObject>> sectionArrays = new HashMap<>();
 
@@ -142,6 +143,7 @@ public class FilteredSearchView extends FrameLayout implements NotificationCente
         public void run() {
             if (isLoading) {
                 messages.clear();
+                messageIdsByDialog.clear();
                 sections.clear();
                 sectionArrays.clear();
                 if (adapter != null) {
@@ -551,6 +553,7 @@ public class FilteredSearchView extends FrameLayout implements NotificationCente
         }
         if (forceClear || currentSearchFilter == null && dialogId == 0 && minDate == 0 && maxDate == 0) {
             messages.clear();
+            messageIdsByDialog.clear();
             sections.clear();
             sectionArrays.clear();
             isLoading = true;
@@ -689,15 +692,28 @@ public class FilteredSearchView extends FrameLayout implements NotificationCente
                     MessagesController.getInstance(currentAccount).putChats(res.chats, false);
                     if (!filterAndQueryIsSame) {
                         messages.clear();
-                        messagesById.clear();
+                        messageIdsByDialog.clear();
                         sections.clear();
                         sectionArrays.clear();
                     }
                     totalCount = res.count;
                     currentDataQuery = finalQuery;
                     int n = messageObjects.size();
+                    int addedCount = 0;
                     for (int i = 0; i < n; i++) {
                         MessageObject messageObject = messageObjects.get(i);
+                        long messageDialogId = messageObject.getDialogId();
+                        SparseBooleanArray ids = messageIdsByDialog.get(messageDialogId);
+                        if (ids == null) {
+                            ids = new SparseBooleanArray();
+                            messageIdsByDialog.put(messageDialogId, ids);
+                        }
+                        if (ids.get(messageObject.getId())) {
+                            continue;
+                        }
+                        ids.put(messageObject.getId(), true);
+                        addedCount++;
+
                         ArrayList<MessageObject> messageObjectsByDate = sectionArrays.get(messageObject.monthKey);
                         if (messageObjectsByDate == null) {
                             messageObjectsByDate = new ArrayList<>();
@@ -706,7 +722,6 @@ public class FilteredSearchView extends FrameLayout implements NotificationCente
                         }
                         messageObjectsByDate.add(messageObject);
                         messages.add(messageObject);
-                        messagesById.put(messageObject.getId(), messageObject);
 
                         if (PhotoViewer.getInstance().isVisible()) {
                             PhotoViewer.getInstance().addPhoto(messageObject, photoViewerClassGuid);
@@ -715,7 +730,7 @@ public class FilteredSearchView extends FrameLayout implements NotificationCente
                     if (messages.size() > totalCount) {
                         totalCount = messages.size();
                     }
-                    endReached = messages.size() >= totalCount;
+                    endReached = res.messages.isEmpty() || (filterAndQueryIsSame && addedCount == 0) || messages.size() >= totalCount;
 
                     if (messages.isEmpty()) {
                         if (currentSearchFilter != null) {
@@ -915,7 +930,13 @@ public class FilteredSearchView extends FrameLayout implements NotificationCente
                     if (messageObject.getId() == markAsDeletedMessages.get(i)) {
                         changed = true;
                         messages.remove(j);
-                        messagesById.remove(messageObject.getId());
+                        SparseBooleanArray ids = messageIdsByDialog.get(dialogId);
+                        if (ids != null) {
+                            ids.delete(messageObject.getId());
+                            if (ids.size() == 0) {
+                                messageIdsByDialog.remove(dialogId);
+                            }
+                        }
 
                         ArrayList<MessageObject> section = sectionArrays.get(messageObject.monthKey);
                         section.remove(messageObject);
